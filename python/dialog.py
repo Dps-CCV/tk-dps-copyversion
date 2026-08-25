@@ -363,6 +363,7 @@ class VersionTableWidget(QtGui.QWidget):
             "Pendiente",
             "Delivered",
         ])
+        self.cmb_delivery.setCurrentIndex(1)  # Pendiente por defecto
         self.cmb_delivery.currentIndexChanged.connect(self._apply_filters)
         filter_row.addWidget(QtGui.QLabel("Entrega:"))
         filter_row.addWidget(self.cmb_delivery)
@@ -377,6 +378,22 @@ class VersionTableWidget(QtGui.QWidget):
         filter_row.addWidget(btn_refresh)
 
         main.addLayout(filter_row)
+
+        # ---- Segunda fila: rango temporal ----
+        range_row = QtGui.QHBoxLayout()
+        range_row.addWidget(QtGui.QLabel("Mostrar versiones de los últimos:"))
+        self.cmb_range = QtGui.QComboBox()
+        self.cmb_range.addItem("7 días",   7)
+        self.cmb_range.addItem("30 días",  30)
+        self.cmb_range.addItem("90 días",  90)
+        self.cmb_range.addItem("6 meses",  180)
+        self.cmb_range.addItem("1 año",    365)
+        self.cmb_range.addItem("Todo",     None)
+        self.cmb_range.setCurrentIndex(2)  # 90 días por defecto
+        self.cmb_range.currentIndexChanged.connect(self._load_all)
+        range_row.addWidget(self.cmb_range)
+        range_row.addStretch()
+        main.addLayout(range_row)
 
         # ---- Tabla ----
         self.table = QtGui.QTableWidget(0, len(self.COLS))
@@ -466,18 +483,29 @@ class VersionTableWidget(QtGui.QWidget):
             self.cmb_status.addItem("— Todos los estados —", None)
             for v in values:
                 self.cmb_status.addItem(v, v)
+            # Seleccionar pcl por defecto si existe
+            idx = self.cmb_status.findData("pcl")
+            if idx >= 0:
+                self.cmb_status.setCurrentIndex(idx)
         except Exception:
-            # Si falla el schema, dejar el combo vacío con solo la opción por defecto
             self.cmb_status.clear()
             self.cmb_status.addItem("— Todos los estados —", None)
 
     def _load_versions(self):
-        """Carga todas las Version del proyecto con sus campos relevantes."""
+        """Carga versiones del proyecto según el rango temporal seleccionado."""
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
             filters = [
                 ["project.Project.id", "is", self._project_id],
             ]
+
+            # Filtro de fecha según el combo de rango
+            range_days = self.cmb_range.currentData()
+            if range_days is not None:
+                from datetime import datetime, timedelta
+                cutoff = datetime.now() - timedelta(days=range_days)
+                filters.append(["created_at", "greater_than", cutoff])
+
             fields = [
                 "code", "id", "image",
                 "entity",
@@ -491,6 +519,10 @@ class VersionTableWidget(QtGui.QWidget):
             self._all_versions = self._sg.find(
                 "Version", filters, fields,
                 [{"field_name": "created_at", "direction": "desc"}],
+                limit=500,
+            )
+            self.lbl_count.setText(
+                f"0 versiones seleccionadas  ·  {len(self._all_versions)} cargadas"
             )
         finally:
             QtGui.QApplication.restoreOverrideCursor()
