@@ -1,0 +1,20 @@
+# Metadata for the tk-dps-copyversion app
+
+display_name: "Copy Version to Envios"
+description: "Copia versiones seleccionadas al directorio de envios, genera reporte Excel y actualiza Flow Production Tracking."
+version: 1.0.0
+author: "Efectoscopio Pipeline"
+email: "pipeline@efectoscopio.com"
+
+# Min versions
+requires_shotgun_version: "7.0.0"
+requires_core_version: "v0.19.0"
+requires_engine_version: "v0.0.1"
+
+frameworks: []
+
+configuration:
+  logo_path:
+    type: str
+    default_value: ""
+    description: "Fallback: ruta absoluta al logo si no existe resources/logo.png."
