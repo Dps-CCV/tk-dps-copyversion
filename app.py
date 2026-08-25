@@ -44,7 +44,7 @@ class DPSCopyVersionApp(Application):
         import dialog as dialog_module
 
         self._dialog = self.engine.show_dialog(
-            "DPS — Copy Version to Envíos",
+            "EFECTOSCOPIO — Copy Version to Envios",
             self,
             dialog_module.AppDialog,
             self,
