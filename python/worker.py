@@ -193,11 +193,15 @@ class CopyWorker(QtCore.QThread):
         return cols
 
     def _write_shot_row(self, ws, idx, shot_data, version_name,
-                        cell_fmt, cutout_fmt, number_fmt, cell_height=140):
+                        cell_fmt, cutout_fmt, number_fmt,
+                        version_description="", cell_height=140):
         """Escribe una fila completa de shot en la hoja Excel."""
         cell_width = 35
         ws.write(idx + 8, 0, version_name, cell_fmt)
         ws.set_column(0, 0, len(version_name) + 20)
+
+        # Notes — description de la versión (no del shot)
+        ws.write(idx + 8, 4, version_description or "", cell_fmt)
 
         for cell in shot_data:
             if cell in ("id", "type"):
@@ -250,7 +254,7 @@ class CopyWorker(QtCore.QThread):
                 col_map = {
                     "code": (2, cell_fmt),
                     "sg_efecto_a_hacer": (3, cell_fmt),
-                    "description": (4, cell_fmt),
+                    # columna 4 = Notes, escrita arriba desde version_description
                     "sg_cut_duration": (5, number_fmt),
                     "sg_cut_in": (6, number_fmt),
                     "sg_cut_out": (7, cutout_fmt),
@@ -379,9 +383,11 @@ class CopyWorker(QtCore.QThread):
                 ["code", "image", "sg_efecto_a_hacer", "description",
                  "sg_cut_duration", "sg_cut_in", "sg_cut_out"],
             )
+            ver_desc = pub.get("version.Version.description") or ""
             self._write_shot_row(
                 ws, idx, shot_data, pub["version"]["name"],
                 cell_fmt, cutout_fmt, number_fmt,
+                version_description=ver_desc,
             )
 
         self._finalize(
@@ -500,9 +506,11 @@ class CopyWorker(QtCore.QThread):
                 ["code", "image", "sg_efecto_a_hacer", "description",
                  "sg_cut_duration", "sg_cut_in", "sg_cut_out"],
             )
+            ver_desc = pub.get("version.Version.description") or ""
             self._write_shot_row(
                 ws, idx, shot_data, pub["version"]["name"],
                 cell_fmt, cutout_fmt, number_fmt,
+                version_description=ver_desc,
             )
 
         # ---- Generar CSV de submission ----
@@ -533,7 +541,7 @@ class CopyWorker(QtCore.QThread):
                 for pub in path_dict:
                     version_name = pub["version"]["name"].replace(".%04d", "")
                     # Sustituir _Comp_ por _compositing_
-                    csv_name_val = version_name.replace("_Comp_", "_compositing_")
+                    csv_name_val = version_name.replace("_Comp_", "_compositing_").replace("_comp_", "_compositing_")
                     description = pub.get("version.Version.description") or ""
                     writer.writerow([csv_name_val, "Published", description])
             self._log(f"CSV generado: {csv_path}")
