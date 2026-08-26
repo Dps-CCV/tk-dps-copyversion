@@ -20,6 +20,15 @@ from PIL import Image
 from sgtk.platform.qt import QtCore
 
 
+# Colores de cabecera Excel por sede (RGB → hex)
+SEDE_HEADER_COLOR = {
+    "Madrid":   "#FFEB00",   # 255 235 0
+    "Canarias": "#2EC4D0",   # 46  196 208
+    "Navarra":  "#FF3C38",   # 255 60  56
+}
+SEDE_HEADER_DEFAULT = "#8EA9DB"  # azul corporativo original
+
+
 class CopyWorker(QtCore.QThread):
     """
     Ejecuta la copia en background y emite señales de progreso.
@@ -108,8 +117,9 @@ class CopyWorker(QtCore.QThread):
     # Excel helpers
     # ------------------------------------------------------------------
 
-    def _build_workbook(self, path):
+    def _build_workbook(self, path, header_color=None):
         """Crea el workbook con todos los formatos reutilizados."""
+        header_color = header_color or SEDE_HEADER_DEFAULT
         wb = xlsxwriter.Workbook(path)
         ws = wb.add_worksheet(os.path.basename(path))
 
@@ -125,7 +135,7 @@ class CopyWorker(QtCore.QThread):
         title_fmt.set_font_name("Helvetica")
         title_fmt.set_bold()
         title_fmt.set_font_size(10)
-        title_fmt.set_bg_color("#8EA9DB")
+        title_fmt.set_bg_color(header_color)
         title_fmt.set_text_wrap()
         title_fmt.set_border(1)
         title_fmt.set_border_color("black")
@@ -295,7 +305,7 @@ class CopyWorker(QtCore.QThread):
         proj = sg.find_one(
             "Project",
             [["id", "is", project_id]],
-            ["sg_cliente", "sg_dps_server", "name"],
+            ["sg_cliente", "sg_dps_server", "name", "sg_sede_new"],
         )
         drive = self._get_drive_letter(proj.get("sg_dps_server", ""))
         project_name = proj["name"]
@@ -321,13 +331,17 @@ class CopyWorker(QtCore.QThread):
         total = len(path_dict)
         versions_created = []
 
+        # Color de cabecera según sede
+        _sede = (proj.get("sg_sede_new") or {}).get("name") or (proj.get("sg_sede_new") or {}).get("code") or ""
+        _header_color = SEDE_HEADER_COLOR.get(_sede, SEDE_HEADER_DEFAULT)
+
         # Excel
         report_name = (
             f"report_{date_number}_{str(len(deliveries) + 1).zfill(5)}.xlsx"
         )
         report_path = os.path.normpath(os.path.join(envios_root, report_name))
         wb, ws, title_fmt, cell_fmt, cutout_fmt, number_fmt, marco_fmt = (
-            self._build_workbook(report_path)
+            self._build_workbook(report_path, header_color=_header_color)
         )
         self._write_sheet_header(ws, wb, title_fmt, marco_fmt)
 
@@ -411,7 +425,7 @@ class CopyWorker(QtCore.QThread):
         proj = sg.find_one(
             "Project",
             [["id", "is", project_id]],
-            ["sg_cliente", "sg_dps_server", "name"],
+            ["sg_cliente", "sg_dps_server", "name", "sg_sede_new"],
         )
         drive = self._get_drive_letter(proj.get("sg_dps_server", ""))
         project_name = proj["name"]
@@ -435,12 +449,16 @@ class CopyWorker(QtCore.QThread):
         total = len(path_dict)
         versions_created = []
 
+        # Color de cabecera según sede
+        _sede = (proj.get("sg_sede_new") or {}).get("name") or (proj.get("sg_sede_new") or {}).get("code") or ""
+        _header_color = SEDE_HEADER_COLOR.get(_sede, SEDE_HEADER_DEFAULT)
+
         report_name = (
             f"report_{date_number}_{str(len(deliveries) + 1).zfill(5)}.xlsx"
         )
         report_path = os.path.normpath(os.path.join(envios_root, report_name))
         wb, ws, title_fmt, cell_fmt, cutout_fmt, number_fmt, marco_fmt = (
-            self._build_workbook(report_path)
+            self._build_workbook(report_path, header_color=_header_color)
         )
         self._write_sheet_header(ws, wb, title_fmt, marco_fmt)
 
