@@ -177,7 +177,7 @@ class CopyWorker(QtCore.QThread):
     def _write_sheet_header(self, ws, wb, title_fmt, marco_fmt):
         cols = [
             "Version", "Thumbnail", "Shot_code",
-            "Efecto a hacer", "Duration", "Cut_In", "Cut_Out",
+            "VFX", "Notes", "Duration", "Cut_In", "Cut_Out",
         ]
         for i, col in enumerate(cols):
             ws.write(7, i, col, title_fmt)
@@ -185,6 +185,7 @@ class CopyWorker(QtCore.QThread):
 
         ws.set_column(0, 0, 8.5)
         ws.set_column(1, 1, 35)
+        ws.set_column(4, 4, 40)  # Notes más ancha
 
         if self._logo_path and os.path.exists(self._logo_path):
             ws.insert_image("A1", self._logo_path, {"x_scale": 1, "y_scale": 1})
@@ -249,9 +250,10 @@ class CopyWorker(QtCore.QThread):
                 col_map = {
                     "code": (2, cell_fmt),
                     "sg_efecto_a_hacer": (3, cell_fmt),
-                    "sg_cut_duration": (4, number_fmt),
-                    "sg_cut_in": (5, number_fmt),
-                    "sg_cut_out": (6, cutout_fmt),
+                    "description": (4, cell_fmt),
+                    "sg_cut_duration": (5, number_fmt),
+                    "sg_cut_in": (6, number_fmt),
+                    "sg_cut_out": (7, cutout_fmt),
                 }
                 if cell in col_map:
                     col_idx, fmt = col_map[cell]
@@ -309,6 +311,7 @@ class CopyWorker(QtCore.QThread):
             "path", "entity", "version", "project",
             "project.Project.name", "project.Project.sg_dps_server",
             "version.Version.sg_path_to_movie",
+            "version.Version.description",
         ]
         path_dict = sg.find("PublishedFile", filters, fields)
         total = len(path_dict)
@@ -373,7 +376,7 @@ class CopyWorker(QtCore.QThread):
             shot_data = sg.find_one(
                 "Shot",
                 [["id", "is", pub["entity"]["id"]]],
-                ["code", "image", "sg_efecto_a_hacer",
+                ["code", "image", "sg_efecto_a_hacer", "description",
                  "sg_cut_duration", "sg_cut_in", "sg_cut_out"],
             )
             self._write_shot_row(
@@ -420,6 +423,7 @@ class CopyWorker(QtCore.QThread):
             "path", "entity", "version", "project",
             "project.Project.name", "project.Project.sg_dps_server",
             "version.Version.sg_path_to_movie",
+            "version.Version.description",
         ]
         path_dict = sg.find("PublishedFile", filters, fields)
         total = len(path_dict)
@@ -493,7 +497,7 @@ class CopyWorker(QtCore.QThread):
             shot_data = sg.find_one(
                 "Shot",
                 [["id", "is", pub["entity"]["id"]]],
-                ["code", "image", "sg_efecto_a_hacer",
+                ["code", "image", "sg_efecto_a_hacer", "description",
                  "sg_cut_duration", "sg_cut_in", "sg_cut_out"],
             )
             self._write_shot_row(
@@ -501,11 +505,40 @@ class CopyWorker(QtCore.QThread):
                 cell_fmt, cutout_fmt, number_fmt,
             )
 
+        # ---- Generar CSV de submission ----
+        self._write_22dogs_csv(envios_root, date_number, path_dict)
+
         self._finalize(
             sg, proj, envios_root, wb, ws, marco_fmt,
             report_name, report_path, deliveries,
             versions_created, version_ids, drive,
         )
+
+    # ------------------------------------------------------------------
+    # CSV de submission para 22Dogs
+    # ------------------------------------------------------------------
+
+    def _write_22dogs_csv(self, envios_root, date_number, path_dict):
+        """
+        Genera DMR5_Submission_CV_YYYYMMDD.csv en la carpeta de ENVIOS.
+        Columnas: name, status, note
+        """
+        import csv
+        csv_name = f"DMR5_Submission_CV_{date_number}.csv"
+        csv_path = os.path.normpath(os.path.join(envios_root, csv_name))
+        try:
+            with open(csv_path, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["name", "status", "note"])
+                for pub in path_dict:
+                    version_name = pub["version"]["name"].replace(".%04d", "")
+                    # Sustituir _Comp_ por _compositing_
+                    csv_name_val = version_name.replace("_Comp_", "_compositing_")
+                    description = pub.get("version.Version.description") or ""
+                    writer.writerow([csv_name_val, "Published", description])
+            self._log(f"CSV generado: {csv_path}")
+        except Exception as e:
+            self._log(f"[WARN] No se pudo generar el CSV: {e}")
 
     # ------------------------------------------------------------------
     # Finalización común: cierre Excel, Delivery, update versions
