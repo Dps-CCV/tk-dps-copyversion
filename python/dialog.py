@@ -406,7 +406,11 @@ class VersionTableWidget(QtGui.QWidget):
         self.table.setShowGrid(False)
         self.table.verticalHeader().setVisible(False)
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setResizeMode(1, QtGui.QHeaderView.Stretch)
+        # Compatibilidad PySide2 / PySide6
+        header = self.table.horizontalHeader()
+        _set_resize = getattr(header, "setSectionResizeMode", None) or getattr(header, "setResizeMode", None)
+        if _set_resize:
+            _set_resize(1, QtGui.QHeaderView.Stretch)
         self.table.setColumnWidth(0, 80)   # thumb
         self.table.setColumnWidth(2, 160)  # shot
         self.table.setColumnWidth(3, 80)   # estado (sg_status_list)
