@@ -184,21 +184,23 @@ QPushButton:hover {{
 }}
 
 QPushButton#btn_run {{
-    background-color: {ACCENT};
-    color: #1A1A1A;
+    background-color: #E85C20;
+    color: #FFFFFF;
     font-weight: bold;
-    font-size: 12px;
+    font-size: 13px;
     padding: 9px 28px;
     border: none;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
 }}
 
 QPushButton#btn_run:hover {{
-    background-color: #F5D520;
+    background-color: #FF6A2A;
 }}
 
 QPushButton#btn_run:disabled {{
-    background-color: #4A4525;
-    color: #6A6525;
+    background-color: #5A3020;
+    color: #8A6050;
 }}
 
 QPushButton#btn_cancel {{
@@ -754,7 +756,17 @@ class AppDialog(QtGui.QDialog):
         lay.addRow("Descripción:", self.txt_desc)
 
         self.cmb_method = QtGui.QComboBox()
-        self.cmb_method.addItems(["FTP", "HDD", "Link", "Wetransfer", "Otro"])
+        self.cmb_method.addItems([
+            "ASPERA",
+            "BOX",
+            "CONTENT HUB",
+            "DISCO DURO",
+            "DROPBOX",
+            "FTP CLIENTE",
+            "FTP DPS",
+            "MEDIA SHUTTLE",
+            "FTRACK",
+        ])
         lay.addRow("Método:", self.cmb_method)
 
         lay.addRow(section("OPCIONES"), QtGui.QWidget())
