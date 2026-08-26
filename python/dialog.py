@@ -355,7 +355,7 @@ class VersionTableWidget(QtGui.QWidget):
 
         self.cmb_status = QtGui.QComboBox()
         self.cmb_status.addItem("— Todos los estados —", None)
-        self.cmb_status.currentIndexChanged.connect(self._apply_filters)
+        self.cmb_status.currentIndexChanged.connect(self._load_versions)
         filter_row.addWidget(QtGui.QLabel("Estado:"))
         filter_row.addWidget(self.cmb_status)
 
@@ -366,7 +366,7 @@ class VersionTableWidget(QtGui.QWidget):
             "Delivered",
         ])
         self.cmb_delivery.setCurrentIndex(1)  # Pendiente por defecto
-        self.cmb_delivery.currentIndexChanged.connect(self._apply_filters)
+        self.cmb_delivery.currentIndexChanged.connect(self._load_versions)
         filter_row.addWidget(QtGui.QLabel("Entrega:"))
         filter_row.addWidget(self.cmb_delivery)
 
@@ -385,13 +385,13 @@ class VersionTableWidget(QtGui.QWidget):
         range_row = QtGui.QHBoxLayout()
         range_row.addWidget(QtGui.QLabel("Mostrar versiones de los últimos:"))
         self.cmb_range = QtGui.QComboBox()
-        self.cmb_range.addItem("7 días",   7)
+        self.cmb_range.addItem("15 días",  15)
         self.cmb_range.addItem("30 días",  30)
         self.cmb_range.addItem("90 días",  90)
         self.cmb_range.addItem("6 meses",  180)
         self.cmb_range.addItem("1 año",    365)
         self.cmb_range.addItem("Todo",     None)
-        self.cmb_range.setCurrentIndex(2)  # 90 días por defecto
+        self.cmb_range.setCurrentIndex(0)  # 15 días por defecto
         self.cmb_range.currentIndexChanged.connect(self._load_all)
         range_row.addWidget(self.cmb_range)
         range_row.addStretch()
@@ -494,7 +494,7 @@ class VersionTableWidget(QtGui.QWidget):
             self.cmb_status.addItem("— Todos los estados —", None)
 
     def _load_versions(self):
-        """Carga versiones del proyecto según el rango temporal seleccionado."""
+        """Carga versiones del proyecto según el rango temporal y filtros activos."""
         QtGui.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
             filters = [
@@ -507,6 +507,18 @@ class VersionTableWidget(QtGui.QWidget):
                 from datetime import datetime, timedelta
                 cutoff = datetime.now() - timedelta(days=range_days)
                 filters.append(["created_at", "greater_than", cutoff])
+
+            # Filtro de status (sg_status_list) — aplicado en la query
+            status_val = self.cmb_status.currentData()
+            if status_val is not None:
+                filters.append(["sg_status_list", "is", status_val])
+
+            # Filtro de entrega — aplicado en la query
+            delivery_text = self.cmb_delivery.currentText()
+            if delivery_text == "Pendiente":
+                filters.append(["sg_to_deliver___delivered", "is_not", "Delivered"])
+            elif delivery_text == "Delivered":
+                filters.append(["sg_to_deliver___delivered", "is", "Delivered"])
 
             fields = [
                 "code", "id", "image",
@@ -536,8 +548,6 @@ class VersionTableWidget(QtGui.QWidget):
 
     def _apply_filters(self):
         pl_id = self.cmb_playlist.currentData()
-        status_val = self.cmb_status.currentData()      # sg_status_list (ej: "ip", "cmpt")
-        delivery_text = self.cmb_delivery.currentText() # Pendiente / Delivered
         search = self.txt_search.text().lower()
 
         self._filtered = []
@@ -547,18 +557,6 @@ class VersionTableWidget(QtGui.QWidget):
                 pl_ids = [p["id"] for p in (v.get("playlists") or [])]
                 if pl_id not in pl_ids:
                     continue
-
-            # Status de versión (sg_status_list)
-            if status_val is not None:
-                if v.get("sg_status_list") != status_val:
-                    continue
-
-            # Status de entrega
-            delivered = v.get("sg_to_deliver___delivered", "")
-            if delivery_text == "Pendiente" and delivered == "Delivered":
-                continue
-            if delivery_text == "Delivered" and delivered != "Delivered":
-                continue
 
             # Búsqueda libre
             if search:
