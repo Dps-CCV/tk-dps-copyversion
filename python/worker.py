@@ -532,6 +532,7 @@ class CopyWorker(QtCore.QThread):
         Columnas: name, status, note
         """
         import csv
+        import re
         csv_name = f"DMR5_Submission_CV_{date_number}.csv"
         csv_path = os.path.normpath(os.path.join(envios_root, csv_name))
         try:
@@ -540,8 +541,8 @@ class CopyWorker(QtCore.QThread):
                 writer.writerow(["name", "status", "note"])
                 for pub in path_dict:
                     version_name = pub["version"]["name"].replace(".%04d", "")
-                    # Sustituir _Comp_ por _compositing_
-                    csv_name_val = version_name.replace("_Comp_", "_compositing_").replace("_comp_", "_compositing_")
+                    # Sustituir _comp_ o _Comp_ (cualquier capitalización)
+                    csv_name_val = re.sub(r"_[Cc]omp_", "_compositing_", version_name)
                     description = pub.get("version.Version.description") or ""
                     writer.writerow([csv_name_val, "Published", description])
             self._log(f"CSV generado: {csv_path}")
