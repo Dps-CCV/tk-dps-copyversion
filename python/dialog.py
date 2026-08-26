@@ -772,7 +772,7 @@ class AppDialog(QtGui.QDialog):
         lay.addRow(section("OPCIONES"), QtGui.QWidget())
 
         self.chk_dailies = QtGui.QCheckBox("Incluir dailies (MOV)")
-        self.chk_dailies.setChecked(True)
+        self.chk_dailies.setChecked(False)
         lay.addRow("", self.chk_dailies)
 
         self.chk_22dogs = QtGui.QCheckBox(
