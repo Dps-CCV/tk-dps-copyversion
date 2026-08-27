@@ -561,8 +561,8 @@ class CopyWorker(QtCore.QThread):
                     version_name = pub["version"]["name"].replace(".%04d", "")
                     # Normalizar: espacios → guiones bajos
                     csv_name_val = version_name.replace(" ", "_")
-                    # Asegurar que DMR va en mayúsculas
-                    csv_name_val = re.sub(r"(?i)\bdmr\b", "DMR", csv_name_val)
+                    # DMR en mayúsculas (pegado a números, ej: Dmr503 → DMR503)
+                    csv_name_val = re.sub(r"(?i)dmr(\d)", r"DMR\1", csv_name_val)
                     # Sustituir _comp_ en cualquier capitalización → _compositing_
                     csv_name_val = re.sub(r"_[Cc][Oo][Mm][Pp]_", "_compositing_", csv_name_val)
                     description = pub.get("version.Version.description") or ""
