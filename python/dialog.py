@@ -284,31 +284,58 @@ class ThumbLabel(QtGui.QLabel):
     """Label que muestra un thumbnail cuadrado 72×72 px."""
     SIZE = 72
 
+    # Descarga en segundo plano (8 hilos) + caché en memoria por URL
+    _pool = None
+    _cache = {}
+    _got = QtCore.Signal(object)
+
     def __init__(self, url="", parent=None):
         super(ThumbLabel, self).__init__(parent)
         self.setFixedSize(self.SIZE, self.SIZE)
         self.setAlignment(QtCore.Qt.AlignCenter)
         self.setStyleSheet(f"background:{PANEL_BG}; border:1px solid {BORDER};")
+        self._got.connect(self._show)
         if url:
+            self.setText("…")
             self._load(url)
         else:
             self.setText("—")
 
     def _load(self, url):
-        try:
+        cache = ThumbLabel._cache
+        if url in cache:
+            self._show(cache[url])
+            return
+        if ThumbLabel._pool is None:
+            from concurrent.futures import ThreadPoolExecutor
+            ThumbLabel._pool = ThreadPoolExecutor(max_workers=8)
+
+        def _fetch():
             import urllib.request
-            from io import BytesIO
-            with urllib.request.urlopen(url, timeout=8) as _r:
-                data = BytesIO(_r.read())
-            pix = QtGui.QPixmap()
-            pix.loadFromData(data.read())
-            self.setPixmap(
-                pix.scaled(self.SIZE, self.SIZE,
-                            QtCore.Qt.KeepAspectRatio,
-                            QtCore.Qt.SmoothTransformation)
-            )
-        except Exception:
+            try:
+                with urllib.request.urlopen(url, timeout=8) as _r:
+                    data = _r.read()
+                cache[url] = data
+            except Exception:
+                data = None
+            try:
+                self._got.emit(data)
+            except RuntimeError:
+                pass  # el widget ya se destruyó (tabla repoblada)
+
+        ThumbLabel._pool.submit(_fetch)
+
+    def _show(self, data):
+        if not data:
             self.setText("?")
+            return
+        pix = QtGui.QPixmap()
+        pix.loadFromData(data)
+        self.setPixmap(
+            pix.scaled(self.SIZE, self.SIZE,
+                       QtCore.Qt.KeepAspectRatio,
+                       QtCore.Qt.SmoothTransformation)
+        )
 
 
 class VersionTableWidget(QtGui.QWidget):
