@@ -10,6 +10,7 @@ import os
 import pprint
 import subprocess
 import sys
+import time
 from datetime import date, datetime
 from io import BytesIO
 
@@ -93,12 +94,22 @@ class CopyWorker(QtCore.QThread):
         Lanza robocopy y emite cada línea de salida como log_line.
         Devuelve el return code.
         """
+        # Optimizado:
+        #  - sin /J (I/O sin búfer): es más lento con muchos ficheros EXR/DPX
+        #  - /MT:32 para aprovechar la red con secuencias de muchos frames
+        #  - /R:1 /W:1 evita esperas largas de reintento (por defecto 1M x 30s)
+        #  - /NFL /NDL /NP /NJH: sin listado por fichero ni porcentajes
+        #    (menos salida y menos overhead de señales hacia la UI)
+        #  - /XO: no recopia ficheros más antiguos que el destino
+        opts = "/MT:12 /R:1 /W:1 /NFL /NDL /NP /NJH /XO"
         if file_filter:
-            cmd = f'robocopy "{src}" "{dst}" "{file_filter}" /MT:12 /J'
+            cmd = f'robocopy "{src}" "{dst}" "{file_filter}" {opts}'
         else:
-            cmd = f'robocopy "{src}" "{dst}" {extra_args} /MT:12 /J'
+            cmd = f'robocopy "{src}" "{dst}" {extra_args} {opts}'
 
         self._log(f"  $ {cmd}")
+        t0 = time.time()
+        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         with subprocess.Popen(
             cmd,
             shell=True,
@@ -106,12 +117,15 @@ class CopyWorker(QtCore.QThread):
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            creationflags=flags,
         ) as proc:
             for line in proc.stdout:
                 line = line.rstrip()
                 if line:
                     self._log(line)
-            return proc.wait()
+            rc = proc.wait()
+        self._log(f"  ⏱ robocopy terminado en {time.time() - t0:.1f}s (código {rc})")
+        return rc
 
     # ------------------------------------------------------------------
     # Excel helpers
