@@ -6,6 +6,7 @@ Emite señales Qt para actualizar la UI de progreso.
 """
 
 import io
+import re
 import os
 import pprint
 import subprocess
@@ -96,12 +97,12 @@ class CopyWorker(QtCore.QThread):
         """
         # Optimizado:
         #  - sin /J (I/O sin búfer): es más lento con muchos ficheros EXR/DPX
-        #  - /MT:32 para aprovechar la red con secuencias de muchos frames
+        #  - /MT:16 para aprovechar la red con secuencias de muchos frames
         #  - /R:1 /W:1 evita esperas largas de reintento (por defecto 1M x 30s)
-        #  - /NFL /NDL /NP /NJH: sin listado por fichero ni porcentajes
-        #    (menos salida y menos overhead de señales hacia la UI)
+        #  - /NDL /NP /NJH: sin listado de carpetas, porcentajes ni cabecera
+        #    (se mantiene el listado fichero a fichero en el log)
         #  - /XO: no recopia ficheros más antiguos que el destino
-        opts = "/MT:12 /R:1 /W:1 /NFL /NDL /NP /NJH /XO"
+        opts = "/MT:16 /R:1 /W:1 /NDL /NP /NJH /XO"
         if file_filter:
             cmd = f'robocopy "{src}" "{dst}" "{file_filter}" {opts}'
         else:
@@ -495,9 +496,11 @@ class CopyWorker(QtCore.QThread):
             render_str_upper = render_str.upper()
 
             # 22Dogs: shotFolder en lower, con subcarpetas Comp/exr y Comp/mov
-            shot_folder = (
-                render_str_upper.replace(" ", "_").lower().replace("dmr", "DMR")
-            )
+            # Se conserva el nombre original; solo DMR en mayúsculas y
+            # _comp_ en minúsculas (cualquier capitalización de origen).
+            shot_folder = render_str.replace(" ", "_")
+            shot_folder = re.sub(r"(?i)dmr(\d)", r"DMR\1", shot_folder)
+            shot_folder = re.sub(r"(?i)_comp_", "_comp_", shot_folder)
 
             envios_folder = os.path.normpath(
                 os.path.join(envios_root, date_number, "Comp", shot_folder, "exr")
@@ -546,7 +549,7 @@ class CopyWorker(QtCore.QThread):
             )
 
         # ---- Generar CSV de submission ----
-        self._write_22dogs_csv(envios_root, date_number, path_dict)
+        self._write_22dogs_csv(envios_root, date_number, path_dict, proj)
 
         self._finalize(
             sg, proj, envios_root, wb, ws, marco_fmt,
@@ -558,14 +561,22 @@ class CopyWorker(QtCore.QThread):
     # CSV de submission para 22Dogs
     # ------------------------------------------------------------------
 
-    def _write_22dogs_csv(self, envios_root, date_number, path_dict):
+    def _project_code(self, proj):
+        """Código del proyecto en Flow: campo 'code' de la entidad Project."""
+        val = self._sg.find_one(
+            "Project", [["id", "is", proj["id"]]], ["code"]
+        ).get("code")
+        return str(val).strip() if val else "PROJECT"
+
+    def _write_22dogs_csv(self, envios_root, date_number, path_dict, proj):
         """
-        Genera DMR5_Submission_CV_YYYYMMDD.csv en la carpeta de ENVIOS.
+        Genera <CODIGO>_Submission_CV_YYYYMMDD.csv en la carpeta de ENVIOS.
         Columnas: name, status, note
         """
         import csv
         import re
-        csv_name = f"DMR5_Submission_CV_{date_number}.csv"
+        code = self._project_code(proj)
+        csv_name = f"{code}_Submission_CV_{date_number}.csv"
         csv_path = os.path.normpath(os.path.join(envios_root, csv_name))
         try:
             with open(csv_path, "w", newline="", encoding="utf-8") as f:
